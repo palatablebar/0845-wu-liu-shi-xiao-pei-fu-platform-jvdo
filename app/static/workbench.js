@@ -43,6 +43,22 @@
       return '<tr>' + values + verdict + breakdown + '</tr>';
     }).join('') : '<tr><td class="empty" colspan="' + (keys.length + (source ? 0 : 1)) + '">没有可展示条目</td></tr>';
   }
+  function renderPromiseTrail(values) {
+    var items = values.promises || [];
+    if (!items.length) return '';
+    var rows = items.slice(0, 12).map(function (p) {
+      var source = p.promise_source || p.commitment_source || '';
+      var flag = p.hold ? '<strong class="check-bad">暂缓</strong>'
+        : (p.used_original_promise ? '原承诺' : (p.used_new_promise ? '新承诺' : esc(source)));
+      return '<div class="ledger-row" title="票 ' + esc(p.shipment_id) + ' / 承诺单 ' + esc(p.promise_waybill_id) + '">' +
+        '<span>' + esc(p.waybill_id) + ' · ' + flag + '</span>' +
+        '<strong>' + esc(p.compensation_cents) + ' 分</strong></div>';
+    }).join('');
+    var total = values.payout_total_cents !== undefined ?
+      '<div class="ledger-row"><span>每票一次应赔合计</span><strong>' + esc(values.payout_total_cents) + ' 分</strong></div>' : '';
+    return '<div class="promise-trail"><p class="empty" style="margin:6px 0 2px">承诺追溯（用的是哪一次承诺）</p>' +
+      rows + total + '</div>';
+  }
   function renderLedger(data) {
     if (!data.ledger) { $('ledger-list').innerHTML = '<p class="empty">运行对账后显示</p>'; return; }
     var values = data.ledger;
@@ -51,7 +67,8 @@
       ['精确重复', values.counts.duplicates], ['忽略行', values.counts.ignored], ['计算条目', values.counts.computed]
     ].map(function (row) { return '<div class="ledger-row"><span>' + row[0] + '</span><strong>' + row[1] + '</strong></div>'; }).join('') +
       '<div class="ledger-row"><span>' + esc(values.metric_field) + '</span><strong>' + esc(values.metric_total) + '</strong></div>' +
-      values.checks.map(function (check) { return '<div class="ledger-row"><span>' + esc(check.label) + '</span><strong class="' + (check.ok ? 'check-ok' : 'check-bad') + '">' + (check.ok ? '通过' : '异常') + '</strong></div>'; }).join('');
+      values.checks.map(function (check) { return '<div class="ledger-row"><span>' + esc(check.label) + '</span><strong class="' + (check.ok ? 'check-ok' : 'check-bad') + '">' + (check.ok ? '通过' : '异常') + '</strong></div>'; }).join('') +
+      renderPromiseTrail(values);
   }
   function render(data) {
     state.payload = data;
@@ -95,7 +112,8 @@
       render(run);
       $('run-status').textContent = run.status + ' · rev ' + run.revision;
       $('revision').textContent = 'rev ' + run.revision;
-      $('sign').disabled = run.summary.REJECT > 0 || state.approved;
+      var blocked = (run.gate && run.gate.blocked) || run.summary.REJECT > 0;
+      $('sign').disabled = blocked || state.approved;
       $('hold').disabled = state.approved;
       $('download').hidden = !state.approved;
       if (state.approved) $('download').href = '/api/runs/' + run.run_id + '/evidence';

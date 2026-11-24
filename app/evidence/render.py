@@ -19,5 +19,10 @@ def render(run):
         "summary": run["summary"],
         "review": {"status": run["status"], "revision": run["revision"], "comment": run["comment"]},
     }
+    ledger = run.get("ledger") or {}
+    # 让证据顶层也能直接读到“用了哪次承诺”和每票赔付
+    for key in ("promises", "commitments", "shipments", "payouts", "settlements", "holds"):
+        if key in ledger:
+            artifact[key] = ledger[key]
     artifact["artifact_sha256"] = stable_digest(artifact)
     return artifact
